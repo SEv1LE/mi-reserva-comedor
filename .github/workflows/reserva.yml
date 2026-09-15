@@ -1,0 +1,27 @@
+name: Reserva Automática Comedor
+
+on:
+  schedule:
+    # 12:56 UTC = 07:56 AM Perú (UTC-5)
+    - cron: '56 12 * * *'
+  workflow_dispatch:
+
+jobs:
+  ejecutar-reserva:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Ejecutar script de reserva
+        env:
+          TARGET_TIME: "2026-09-16T08:00:00-05:00"
+          TOKEN_USUARIO_1: ${{ secrets.TOKEN_USUARIO_1 }}
+          TOKEN_USUARIO_2: ${{ secrets.TOKEN_USUARIO_2 }}
+        run: node index.js
