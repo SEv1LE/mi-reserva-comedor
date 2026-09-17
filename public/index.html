@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Comedor Automático</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0f172a; color: #f8fafc; padding: 15px; margin: 0; }
+    h2 { color: #38bdf8; text-align: center; }
+    .card { background: #1e293b; padding: 15px; border-radius: 12px; margin-bottom: 15px; }
+    input, button { width: 100%; padding: 12px; margin-top: 8px; border-radius: 8px; border: none; box-sizing: border-box; }
+    input { background: #334155; color: #fff; }
+    button { background: #0284c7; color: white; font-weight: bold; cursor: pointer; }
+    .btn-danger { background: #ef4444; }
+    .btn-sec { background: #475569; }
+    .user-item { display: flex; justify-content: space-between; align-items: center; background: #334155; padding: 10px; margin-top: 8px; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <h2>Panel Comedor</h2>
+
+  <div class="card">
+    <h3>Agregar / Editar Usuario</h3>
+    <input type="text" id="codigo" placeholder="Código (ej. 230604)">
+    <input type="password" id="clave" placeholder="PIN (ej. 86954)">
+    <button onclick="guardarUsuario()">Guardar Usuario</button>
+  </div>
+
+  <div class="card">
+    <h3>Gestión de Lista</h3>
+    <button class="btn-sec" onclick="document.getElementById('fileInput').click()">Importar JSON</button>
+    <input type="file" id="fileInput" style="display:none" onchange="importarJSON(event)">
+    <button class="btn-sec" style="margin-top:8px;" onclick="window.location.href='/api/usuarios/exportar'">Exportar JSON</button>
+  </div>
+
+  <div class="card">
+    <h3>Usuarios Registrados</h3>
+    <div id="listaUsuarios">Cargando...</div>
+  </div>
+
+  <script>
+    async function cargarUsuarios() {
+      const res = await fetch('/api/usuarios');
+      const data = await res.json();
+      const cont = document.getElementById('listaUsuarios');
+      cont.innerHTML = data.length === 0 ? '<p>No hay usuarios.</p>' : '';
+      data.forEach(u => {
+        cont.innerHTML += `
+          <div class="user-item">
+            <span><b>${u.codigo}</b></span>
+            <button class="btn-danger" style="width:auto; padding:6px 12px;" onclick="eliminar('${u.codigo}')">X</button>
+          </div>`;
+      });
+    }
+
+    async function guardarUsuario() {
+      const codigo = document.getElementById('codigo').value;
+      const clave = document.getElementById('clave').value;
+      if(!codigo || !clave) return alert('Completa los campos');
+      await fetch('/api/usuarios', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ codigo, clave })
+      });
+      document.getElementById('codigo').value = '';
+      document.getElementById('clave').value = '';
+      cargarUsuarios();
+    }
+
+    async function eliminar(codigo) {
+      if(confirm(`¿Eliminar ${codigo}?`)) {
+        await fetch(`/api/usuarios/${codigo}`, { method: 'DELETE' });
+        cargarUsuarios();
+      }
+    }
+
+    function importarJSON(e) {
+      const file = e.target.files[0];
+      const reader = new FileReader();
+      reader.onload = async (evt) => {
+        const usuarios = JSON.parse(evt.target.result);
+        await fetch('/api/usuarios/importar', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ usuarios })
+        });
+        cargarUsuarios();
+      };
+      reader.readAsText(file);
+    }
+
+    cargarUsuarios();
+  </script>
+</body>
+</html>
