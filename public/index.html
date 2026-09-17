@@ -13,12 +13,26 @@
     button { background: #0284c7; color: white; font-weight: bold; cursor: pointer; }
     .btn-danger { background: #ef4444; }
     .btn-sec { background: #475569; }
+    .btn-trigger { background: #10b981; margin-top: 10px; }
     .user-item { display: flex; justify-content: space-between; align-items: center; background: #334155; padding: 10px; margin-top: 8px; border-radius: 6px; }
   </style>
 </head>
 <body>
   <h2>Panel Comedor</h2>
 
+  <!-- Programar Hora -->
+  <div class="card">
+    <h3>Programar Hora de Reserva</h3>
+    <div style="display: flex; gap: 10px;">
+      <input type="number" id="horaInput" placeholder="Hora (0-23)" min="0" max="23">
+      <input type="number" id="minutoInput" placeholder="Minuto (0-59)" min="0" max="59">
+    </div>
+    <button onclick="guardarHorario()">Guardar Hora</button>
+    <button class="btn-trigger" onclick="dispararManual()">Lanzar Reserva Ahora</button>
+    <p id="estadoHorario" style="font-size:0.9em; color:#38bdf8; text-align: center; margin-top: 8px;"></p>
+  </div>
+
+  <!-- Gestión de Usuarios -->
   <div class="card">
     <h3>Agregar / Editar Usuario</h3>
     <input type="text" id="codigo" placeholder="Código (ej. 230604)">
@@ -26,6 +40,7 @@
     <button onclick="guardarUsuario()">Guardar Usuario</button>
   </div>
 
+  <!-- Gestión de Archivos -->
   <div class="card">
     <h3>Gestión de Lista</h3>
     <button class="btn-sec" onclick="document.getElementById('fileInput').click()">Importar JSON</button>
@@ -33,17 +48,19 @@
     <button class="btn-sec" style="margin-top:8px;" onclick="window.location.href='/api/usuarios/exportar'">Exportar JSON</button>
   </div>
 
+  <!-- Lista de Usuarios -->
   <div class="card">
     <h3>Usuarios Registrados</h3>
     <div id="listaUsuarios">Cargando...</div>
   </div>
 
   <script>
+    // --- LÓGICA DE USUARIOS ---
     async function cargarUsuarios() {
       const res = await fetch('/api/usuarios');
       const data = await res.json();
       const cont = document.getElementById('listaUsuarios');
-      cont.innerHTML = data.length === 0 ? '<p>No hay usuarios.</p>' : '';
+      cont.innerHTML = data.length === 0 ? '<p>No hay usuarios registrados.</p>' : '';
       data.forEach(u => {
         cont.innerHTML += `
           <div class="user-item">
@@ -89,7 +106,44 @@
       reader.readAsText(file);
     }
 
+    // --- LÓGICA DE HORARIO Y DISPARO ---
+    async function cargarHorario() {
+      try {
+        const res = await fetch('/api/config/horario');
+        const data = await res.json();
+        document.getElementById('horaInput').value = data.hora;
+        document.getElementById('minutoInput').value = data.minuto;
+        document.getElementById('estadoHorario').innerText = `Programado a las ${data.hora.toString().padStart(2,'0')}:${data.minuto.toString().padStart(2,'0')} hrs`;
+      } catch (err) {
+        document.getElementById('estadoHorario').innerText = 'Error al cargar horario';
+      }
+    }
+
+    async function guardarHorario() {
+      const hora = document.getElementById('horaInput').value;
+      const minuto = document.getElementById('minutoInput').value;
+      if(hora === '' || minuto === '') return alert('Ingresa hora y minuto válidos');
+      
+      await fetch('/api/config/horario', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ hora, minuto })
+      });
+      cargarHorario();
+      alert('Horario reprogramado con éxito');
+    }
+
+    async function dispararManual() {
+      if(confirm('¿Lanzar proceso de reserva masivo ahora mismo?')) {
+        const res = await fetch('/api/reservar-ahora', { method: 'POST' });
+        const data = await res.json();
+        alert(data.message);
+      }
+    }
+
+    // Carga inicial
     cargarUsuarios();
+    cargarHorario();
   </script>
 </body>
 </html>

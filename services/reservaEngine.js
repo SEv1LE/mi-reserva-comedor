@@ -3,10 +3,14 @@ const axios = require('axios');
 const Usuario = require('../models/Usuario');
 const { resolverCaptcha } = require('./captcha');
 
-// Configuración del comedor de la universidad
-const CAPTCHA_SITE_KEY = 'TU_RECAPTCHA_SITE_KEY_DEL_COMEDOR'; // Cambia por el sitekey del formulario
-const URL_COMEDOR_PAGE = 'https://comedor.unsaac.edu.pe'; // URL donde está el formulario
-const URL_API_RESERVA = 'https://comedor.unsaac.edu.pe/api/reservar'; // Endpoint final de reserva
+// Configuración general
+const CAPTCHA_SITE_KEY = process.env.CAPTCHA_SITE_KEY || 'TU_RECAPTCHA_SITE_KEY_DEL_COMEDOR';
+const URL_COMEDOR_PAGE = 'https://comedor.unsaac.edu.pe';
+const URL_API_RESERVA = 'https://comedor.unsaac.edu.pe/api/reservar';
+
+let tareaCron = null;
+let horaReserva = 8;
+let minutoReserva = 0;
 
 async function procesarReservaUsuario(usuario, captchaToken) {
   try {
@@ -32,13 +36,11 @@ async function procesarReservaUsuario(usuario, captchaToken) {
 async function ejecutarDisparoMasivo() {
   console.log('[*] Iniciando ciclo de reserva automática...');
 
-  // 1. Obtener alumnos activos
   const usuarios = await Usuario.find({ activo: true });
   if (usuarios.length === 0) {
     return console.log('[-] No hay usuarios activos registrados.');
   }
 
-  // 2. Resolver un token CAPTCHA mediante la API de 2Captcha
   console.log('[*] Solicitando resolución de CAPTCHA a 2Captcha...');
   const captchaToken = await resolverCaptcha(CAPTCHA_SITE_KEY, URL_COMEDOR_PAGE);
 
@@ -48,21 +50,38 @@ async function ejecutarDisparoMasivo() {
 
   console.log('[+] Token CAPTCHA obtenido con éxito. Disparando peticiones en paralelo...');
 
-  // 3. Disparo en paralelo para todos los usuarios utilizando el token resuelto
   const promesas = usuarios.map(u => procesarReservaUsuario(u, captchaToken));
   const resultados = await Promise.all(promesas);
 
   console.log('[+] Ciclo finalizado. Resumen:', resultados);
 }
 
-// Programador de tareas: Ejecuta a las 08:00:00 AM todos los días (Hora Perú / UTC-5)
-function iniciarProgramador() {
-  cron.schedule('0 8 * * *', () => {
+function programarHorario(hora, minuto) {
+  horaReserva = parseInt(hora);
+  minutoReserva = parseInt(minuto);
+
+  if (tareaCron) {
+    tareaCron.stop();
+  }
+
+  const expresionCron = `${minutoReserva} ${horaReserva} * * *`;
+
+  tareaCron = cron.schedule(expresionCron, () => {
     ejecutarDisparoMasivo();
   }, {
     timezone: "America/Lima"
   });
-  console.log('[+] Cron Job activo: Programado para las 08:00:00 AM (America/Lima)');
+
+  console.log(`[+] Reserva reprogramada para las ${horaReserva.toString().padStart(2, '0')}:${minutoReserva.toString().padStart(2, '0')}:00 hrs (America/Lima)`);
 }
 
-module.exports = { iniciarProgramador, ejecutarDisparoMasivo };
+function obtenerHorarioActual() {
+  return { hora: horaReserva, minuto: minutoReserva };
+}
+
+module.exports = { 
+  iniciarProgramador: () => programarHorario(8, 0), 
+  programarHorario, 
+  obtenerHorarioActual, 
+  ejecutarDisparoMasivo 
+};
